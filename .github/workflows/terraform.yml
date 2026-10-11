@@ -1,0 +1,119 @@
+# Infrastructure pipeline for the EKS stack (cluster, nodes, IRSA, ALB controller, ArgoCD).
+#
+#   pull request touching terraform/**  ->  fmt + validate + plan, plan posted on the PR
+#   push to main touching terraform/**  ->  plan + apply
+#   manual run                          ->  choose plan / apply / destroy
+#
+# App deploys do NOT go through here: ci-cd.yaml pushes the image and ArgoCD
+# rolls it out. Terraform only owns the platform underneath.
+#
+# Repo settings required:
+#   Variables:  AWS_REGION, AWS_ACCOUNT_ID
+#               ADMIN_PRINCIPAL_ARNS (optional, JSON list e.g. ["arn:aws:iam::123:user/me"])
+#   Auth:       GitHub OIDC -> IAM role github-actions-terraform (separate from the
+#               ECR-push role used by ci-cd.yaml). See iam/ for the trust policies.
+#               It needs rights to create EKS / IAM / EC2-tag resources and
+#               read/write the S3 state bucket.
+
+name: Terraform
+
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+      - "iam_policy.json"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches: [ main ]
+    paths:
+      - "terraform/**"
+      - "iam_policy.json"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "What to run"
+        type: choice
+        options: [ plan, apply, destroy ]
+        default: plan
+
+permissions:
+  id-token: write       # OIDC token for AWS auth
+  contents: read
+  pull-requests: write  # post the plan on the PR
+
+concurrency:
+  group: terraform
+  cancel-in-progress: false   # never kill a run that holds the state lock
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_VAR_AWS_REGION: ${{ vars.AWS_REGION }}
+  TF_VAR_GITOPS_REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
+  TF_VAR_ADMIN_PRINCIPAL_ARNS: ${{ vars.ADMIN_PRINCIPAL_ARNS || '[]' }}
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./terraform
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-terraform
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.11.4
+          terraform_wrapper: false
+
+      - run: terraform init -input=false
+
+      - run: terraform fmt -check -recursive
+
+      - run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          if [ "${{ github.event.inputs.action }}" = "destroy" ]; then
+            terraform plan -destroy -no-color -input=false -out=tfplan
+          else
+            terraform plan -no-color -input=false -out=tfplan
+          fi
+          terraform show -no-color tfplan > plan.txt
+
+      - name: Comment plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let plan = fs.readFileSync('terraform/plan.txt', 'utf8');
+            if (plan.length > 60000) plan = plan.slice(0, 60000) + '\n... (truncated)';
+            const body = `### Terraform plan\n<details><summary>Show plan</summary>\n\n\`\`\`hcl\n${plan}\n\`\`\`\n</details>`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: context.issue.number, body,
+            });
+
+      - name: Terraform Apply
+        if: |
+          github.event_name == 'push' ||
+          (github.event_name == 'workflow_dispatch' &&
+           (github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy'))
+        run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Show cluster access + ArgoCD commands
+        if: github.event_name != 'pull_request' && github.event.inputs.action != 'destroy'
+        run: |
+          terraform output -raw kubeconfig_command || true
+          echo
+          terraform output -raw argocd_password_command || true

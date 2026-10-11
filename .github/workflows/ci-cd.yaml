@@ -1,0 +1,84 @@
+# CI/CD for the STACK IT Customer Churn app.
+# On every push to main:  test -> build & push image to Amazon ECR ->
+# bump the image tag in k8s/kustomization.yaml and commit (GitOps).
+# ArgoCD then syncs the new image to the EKS cluster automatically.
+#
+# Repo settings required:
+#   Variables:  AWS_REGION, AWS_ACCOUNT_ID, ECR_REPO   (e.g. stackit-churn-app)
+#   Auth:       GitHub OIDC -> an IAM role (no long-lived keys). Put the role
+#               ARN in `role-to-assume` below; it needs ECR push permissions.
+
+name: ci-cd
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:   # infra/manifest-only changes don't need a new image
+      - "terraform/**"
+      - "k8s/**"
+      - "argocd/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write      # OIDC token for AWS auth
+  contents: write      # push the GitOps manifest bump
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECR_REPO: ${{ vars.ECR_REPO }}
+  IMAGE: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/${{ vars.ECR_REPO }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt
+      - run: python train/train_model.py     # model builds
+      - run: python tests/test_app.py         # smoke tests
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-ecr-push
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push image
+        run: |
+          docker build -t "$IMAGE:${{ steps.meta.outputs.tag }}" -t "$IMAGE:latest" .
+          docker push "$IMAGE:${{ steps.meta.outputs.tag }}"
+          docker push "$IMAGE:latest"
+
+  update-manifests:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install kustomize
+        run: |
+          curl -sfLo /tmp/k.tgz https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz
+          sudo tar -xzf /tmp/k.tgz -C /usr/local/bin
+      - name: Bump image tag (GitOps)
+        run: |
+          cd k8s
+          kustomize edit set image stackit-churn-app="$IMAGE:${{ needs.build-and-push.outputs.tag }}"
+      - name: Commit and push
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "ci: deploy ${IMAGE}:${{ needs.build-and-push.outputs.tag }}" || echo "no changes"
+          git pull --rebase origin main   # main may have moved while we built
+          git push

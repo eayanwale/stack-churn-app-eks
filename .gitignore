@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.env
+*.log
+*.pdf
+*.jpg
+.terraform/
+*.exe
+terraform.tfstate
+terraform.tfstate.*
+*.tfvars
+!*.tfvars.example
+tfplan
+plan.txt

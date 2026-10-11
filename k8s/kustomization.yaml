@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: stackit-churn
+resources:
+- namespace.yaml
+- serviceaccount.yaml
+- configmap.yaml
+- deployment.yaml
+- service.yaml
+- ingress.yaml
+- hpa.yaml
+images:
+- name: stackit-churn-app
+  newName: 524558748095.dkr.ecr.us-east-1.amazonaws.com/stackit-churn-repo
+  newTag: v2

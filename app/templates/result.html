@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Prediction{% endblock %}
+{% block content %}
+<h1>Churn prediction</h1>
+<p class="lead">Based on the details provided, here is the model's assessment.</p>
+
+<div class="card">
+  <div class="result-hero">
+    {% set gc = '#e15b4e' if band=='high' else ('#e0a020' if band=='medium' else '#1f9d6b') %}
+    <div class="gauge" style="--p: {{ pct }}; --gc: {{ gc }};">
+      <div class="inner">
+        <div class="pct" style="color: {{ gc }}">{{ pct }}%</div>
+        <div class="cap">CHURN RISK</div>
+      </div>
+    </div>
+    <div>
+      <div class="verdict">
+        {% if result.churn %}Likely to churn{% else %}Likely to stay{% endif %}
+        <small>Probability of churn: {{ pct }}% &nbsp;·&nbsp; decision threshold 50%</small>
+      </div>
+      <p style="margin:12px 0 0">
+        Risk band: <span class="pill {{ band }}">{{ band|upper }}</span>
+      </p>
+      <p class="lead" style="margin-top:12px">
+        {% if band=='high' %}Prioritise a retention offer — this profile matches high-churn patterns.
+        {% elif band=='medium' %}Worth a proactive check-in; some risk factors are present.
+        {% else %}Low risk — standard engagement is fine.{% endif %}
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Inputs used</h2>
+  <table class="kv">
+    {% for f in order %}
+    <tr>
+      <td>{{ labels.get(f, f) }}</td>
+      <td>{% if f == 'SeniorCitizen' %}{{ 'Yes' if record[f]==1 else 'No' }}{% else %}{{ record[f] }}{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <div class="actions">
+    <a class="btn-ghost" href="{{ url_for('index') }}">&larr; Predict another customer</a>
+  </div>
+</div>
+{% endblock %}

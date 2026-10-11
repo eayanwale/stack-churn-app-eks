@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: churn-app
+  namespace: stackit-churn
+  labels: { app: churn-app }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: churn-app }
+  template:
+    metadata:
+      labels: { app: churn-app }
+    spec:
+      serviceAccountName: churn-sa
+      containers:
+        - name: churn-app
+          image: stackit-churn-app:latest   # kustomize/CI rewrites this to the ECR image
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef: { name: churn-config }
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false

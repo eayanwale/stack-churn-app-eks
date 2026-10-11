@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Customer Churn Predictor{% endblock %} · STACK IT</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="topbar">
+    <div class="wrap">
+      <img src="{{ url_for('static', filename='logo.png') }}" alt="STACK IT Training">
+      <div class="title">Customer Churn Predictor
+        <small>STACK IT · APPLIED ML</small>
+      </div>
+      <div class="spacer"></div>
+      {% if backend.mode == 'aws' %}
+        <span class="badge aws">AWS · SageMaker</span>
+      {% else %}
+        <span class="badge local">Local model</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="wrap">
+    {% block content %}{% endblock %}
+  </div>
+
+  <div class="foot">
+    {% if backend.mode == 'aws' %}
+      Inference: <b>Amazon SageMaker</b> endpoint <code>{{ backend.endpoint_name }}</code>
+      in <code>{{ backend.region }}</code>.
+    {% else %}
+      Inference: <b>local model</b> ({{ backend.model_type }}){% if backend.metrics %} ·
+      test AUC {{ backend.metrics.get('roc_auc') }} · accuracy {{ backend.metrics.get('accuracy') }}{% endif %}.
+    {% endif %}
+    &nbsp;·&nbsp; STACK IT Training — for demonstration; not a substitute for a validated production model.
+  </div>
+</body>
+</html>

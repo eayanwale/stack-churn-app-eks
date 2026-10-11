@@ -1,0 +1,91 @@
+{
+  "model_type": "GradientBoostingClassifier",
+  "framework": "scikit-learn",
+  "trained_at": "2026-09-28T22:33:34.024487+00:00",
+  "feature_order": [
+    "gender",
+    "SeniorCitizen",
+    "Partner",
+    "Dependents",
+    "tenure",
+    "PhoneService",
+    "InternetService",
+    "OnlineSecurity",
+    "TechSupport",
+    "StreamingTV",
+    "Contract",
+    "PaperlessBilling",
+    "PaymentMethod",
+    "MonthlyCharges",
+    "TotalCharges"
+  ],
+  "numeric_features": [
+    "tenure",
+    "MonthlyCharges",
+    "TotalCharges",
+    "SeniorCitizen"
+  ],
+  "categorical_features": {
+    "gender": [
+      "Female",
+      "Male"
+    ],
+    "Partner": [
+      "No",
+      "Yes"
+    ],
+    "Dependents": [
+      "No",
+      "Yes"
+    ],
+    "PhoneService": [
+      "No",
+      "Yes"
+    ],
+    "InternetService": [
+      "DSL",
+      "Fiber optic",
+      "No"
+    ],
+    "OnlineSecurity": [
+      "No",
+      "Yes",
+      "No internet service"
+    ],
+    "TechSupport": [
+      "No",
+      "Yes",
+      "No internet service"
+    ],
+    "StreamingTV": [
+      "No",
+      "Yes",
+      "No internet service"
+    ],
+    "Contract": [
+      "Month-to-month",
+      "One year",
+      "Two year"
+    ],
+    "PaperlessBilling": [
+      "No",
+      "Yes"
+    ],
+    "PaymentMethod": [
+      "Electronic check",
+      "Mailed check",
+      "Bank transfer (automatic)",
+      "Credit card (automatic)"
+    ]
+  },
+  "target": "Churn",
+  "positive_label": "Yes (customer will churn)",
+  "threshold": 0.5,
+  "metrics": {
+    "accuracy": 0.7867,
+    "roc_auc": 0.7948,
+    "n_train": 4800,
+    "n_test": 1200,
+    "churn_rate": 0.2515
+  }
+}

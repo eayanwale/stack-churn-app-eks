@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: churn-config
+  namespace: stackit-churn
+data:
+  # local = bundled model file (default) | aws = SageMaker endpoint
+  INFERENCE_MODE: "local"
+  AWS_REGION: "us-east-1"
+  CHURN_THRESHOLD: "0.5"
+  PORT: "8080"
+  # For AWS mode also set:
+  # SAGEMAKER_ENDPOINT_NAME: "stackit-churn-endpoint"

@@ -1,0 +1,4 @@
+# Copy to terraform.tfvars for local runs. In CI the same values come from
+# repo Variables (see .github/workflows/terraform.yml).
+GITOPS_REPO_URL      = "https://github.com/<your-org>/stackit-churn-app_eks.git"
+ADMIN_PRINCIPAL_ARNS = ["arn:aws:iam::524558748095:user/<you>"]
