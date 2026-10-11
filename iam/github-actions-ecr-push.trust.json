@@ -9,11 +9,10 @@
       "Action": "sts:AssumeRoleWithWebIdentity",
       "Condition": {
         "StringEquals": {
-          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
-        },
-        "StringLike": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
           "token.actions.githubusercontent.com:sub": [
-            "repo:<GITHUB_ORG>/stackit-churn-app_eks:ref:refs/heads/main"
+            "repo:eayanwale@235366535/stack-churn-app-docker@1413523040:ref:refs/heads/main",
+            "repo:eayanwale@235366535/stack-churn-app-eks@1414787503:ref:refs/heads/main"
           ]
         }
       }

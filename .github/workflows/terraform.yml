@@ -105,6 +105,7 @@ jobs:
             });
 
       - name: Terraform Apply
+        id: apply
         if: |
           github.event_name == 'push' ||
           (github.event_name == 'workflow_dispatch' &&
