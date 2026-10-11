@@ -24,6 +24,12 @@ permissions:
   id-token: write      # OIDC token for AWS auth
   contents: write      # push the GitOps manifest bump
 
+# One pipeline at a time, so two runs never race to commit the new tag.
+# Waiting runs are queued, not cancelled; a newer waiting run replaces an older one.
+concurrency:
+  group: ci-cd
+  cancel-in-progress: false
+
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
   ECR_REPO: ${{ vars.ECR_REPO }}
@@ -71,14 +77,22 @@ jobs:
         run: |
           curl -sfLo /tmp/k.tgz https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz
           sudo tar -xzf /tmp/k.tgz -C /usr/local/bin
-      - name: Bump image tag (GitOps)
-        run: |
-          cd k8s
-          kustomize edit set image stackit-churn-app="$IMAGE:${{ needs.build-and-push.outputs.tag }}"
-      - name: Commit and push
+      # Bump the tag and push. If main moved meanwhile (another bot commit),
+      # start again from the latest main and redo the one-line edit, instead of
+      # rebasing and hitting a conflict on the same line.
+      - name: Bump image tag and push (GitOps)
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -am "ci: deploy ${IMAGE}:${{ needs.build-and-push.outputs.tag }}" || echo "no changes"
-          git pull --rebase origin main   # main may have moved while we built
-          git push
+          for i in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            (cd k8s && kustomize edit set image stackit-churn-app="$IMAGE:${{ needs.build-and-push.outputs.tag }}")
+            if git diff --quiet; then echo "no changes"; exit 0; fi
+            git commit -am "ci: deploy ${IMAGE}:${{ needs.build-and-push.outputs.tag }}"
+            if git push origin HEAD:main; then exit 0; fi
+            echo "push rejected (attempt $i), retrying..."
+            sleep $((RANDOM % 5 + 2))
+          done
+          echo "could not push the manifest bump" >&2
+          exit 1
