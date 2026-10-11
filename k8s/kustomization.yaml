@@ -12,4 +12,4 @@ resources:
 images:
 - name: stackit-churn-app
   newName: 524558748095.dkr.ecr.us-east-1.amazonaws.com/stackit-churn-repo
-  newTag: 4cece94
+  newTag: 9c693a2
