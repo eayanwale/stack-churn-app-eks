@@ -5,7 +5,7 @@ metadata:
   namespace: stackit-churn
   labels: { app: churn-app }
 spec:
-  replicas: 6
+  # No replicas here: hpa.yaml controls the pod count (2-6)
   selector:
     matchLabels: { app: churn-app }
   template:
