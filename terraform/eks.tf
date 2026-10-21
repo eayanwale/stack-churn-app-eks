@@ -1,10 +1,12 @@
+# Current AWS account, used to build ARNs
 data "aws_caller_identity" "current" {}
 
+# Existing subnets the cluster and nodes run in
 locals {
   subnet_ids = [var.SUBNET_A, var.SUBNET_B]
 }
 
-# ---- Subnet tags the AWS Load Balancer Controller uses for discovery --------
+# Subnet tags the AWS Load Balancer Controller looks for when it creates the ALB
 resource "aws_ec2_tag" "subnet_elb" {
   for_each    = toset(local.subnet_ids)
   resource_id = each.value
@@ -19,7 +21,7 @@ resource "aws_ec2_tag" "subnet_cluster" {
   value       = "shared"
 }
 
-# ---- Control plane ----------------------------------------------------------
+# Control plane: IAM role EKS assumes to manage the cluster
 resource "aws_iam_role" "cluster" {
   name = "${var.CLUSTER_NAME}-cluster-role"
 
@@ -38,6 +40,8 @@ resource "aws_iam_role_policy_attachment" "cluster" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
 }
 
+# The EKS cluster. API auth mode uses access entries instead of the aws-auth ConfigMap,
+# and whoever runs Terraform (the GitHub Actions role) is made cluster admin.
 resource "aws_eks_cluster" "this" {
   name     = var.CLUSTER_NAME
   version  = var.CLUSTER_VERSION
@@ -64,6 +68,7 @@ resource "aws_eks_access_entry" "admin" {
   principal_arn = each.value
 }
 
+# Give those principals the cluster admin policy
 resource "aws_eks_access_policy_association" "admin" {
   for_each      = toset(var.ADMIN_PRINCIPAL_ARNS)
   cluster_name  = aws_eks_cluster.this.name
@@ -77,7 +82,7 @@ resource "aws_eks_access_policy_association" "admin" {
   depends_on = [aws_eks_access_entry.admin]
 }
 
-# ---- Worker nodes -----------------------------------------------------------
+# Worker nodes: IAM role the EC2 nodes run as
 resource "aws_iam_role" "node" {
   name = "${var.CLUSTER_NAME}-node-role"
 
@@ -91,6 +96,7 @@ resource "aws_iam_role" "node" {
   })
 }
 
+# AWS managed policies every EKS node needs (join the cluster, pod networking, ECR pulls)
 resource "aws_iam_role_policy_attachment" "node" {
   for_each = toset([
     "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
@@ -101,6 +107,7 @@ resource "aws_iam_role_policy_attachment" "node" {
   policy_arn = each.value
 }
 
+# Managed node group that runs the app pods, ArgoCD and the LB controller
 resource "aws_eks_node_group" "default" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "${var.CLUSTER_NAME}-default"

@@ -1,4 +1,5 @@
-# ---- IAM Roles for Service Accounts (IRSA) ----------------------------------
+# IRSA (IAM Roles for Service Accounts): lets a k8s service account assume an IAM role.
+# The cluster's OIDC issuer is registered with IAM so it can trust the pod tokens.
 data "tls_certificate" "oidc" {
   url = aws_eks_cluster.this.identity[0].oidc[0].issuer
 }
@@ -9,16 +10,19 @@ resource "aws_iam_openid_connect_provider" "eks" {
   thumbprint_list = [data.tls_certificate.oidc.certificates[0].sha1_fingerprint]
 }
 
+# Issuer URL without https://, used as the key in the trust policy conditions
 locals {
   oidc_host = replace(aws_iam_openid_connect_provider.eks.url, "https://", "")
 }
 
-# --- AWS Load Balancer Controller (turns k8s/ingress.yaml into an ALB) -------
+# AWS Load Balancer Controller: turns k8s/ingress.yaml into an ALB.
+# iam_policy.json is the official policy published by the controller project.
 resource "aws_iam_policy" "lb_controller" {
   name   = "${var.CLUSTER_NAME}-lb-controller"
   policy = file("${path.module}/../iam_policy.json")
 }
 
+# Only the controller's service account in kube-system can assume this role
 resource "aws_iam_role" "lb_controller" {
   name = "${var.CLUSTER_NAME}-lb-controller"
 
@@ -43,7 +47,7 @@ resource "aws_iam_role_policy_attachment" "lb_controller" {
   policy_arn = aws_iam_policy.lb_controller.arn
 }
 
-# --- The app itself: SageMaker InvokeEndpoint for INFERENCE_MODE=aws ----------
+# The app's role, assumed by the churn-sa service account. Only needed for INFERENCE_MODE=aws.
 resource "aws_iam_role" "app" {
   name = "churn-sagemaker-irsa"
 
@@ -63,6 +67,7 @@ resource "aws_iam_role" "app" {
   })
 }
 
+# Lets the app call the SageMaker endpoint
 resource "aws_iam_role_policy" "app" {
   name = "invoke-churn-endpoint"
   role = aws_iam_role.app.id

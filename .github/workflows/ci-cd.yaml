@@ -72,27 +72,21 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
+      # Check out the latest main (not the triggering commit) so the push below is a fast-forward
       - uses: actions/checkout@v4
+        with:
+          ref: main
       - name: Install kustomize
         run: |
           curl -sfLo /tmp/k.tgz https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz
           sudo tar -xzf /tmp/k.tgz -C /usr/local/bin
-      # Bump the tag and push. If main moved meanwhile (another bot commit),
-      # start again from the latest main and redo the one-line edit, instead of
-      # rebasing and hitting a conflict on the same line.
+      # Point k8s/kustomization.yaml at the new image tag and commit it.
+      # ArgoCD watches k8s/ on main, sees the commit and rolls out the new image.
       - name: Bump image tag and push (GitOps)
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          for i in 1 2 3 4 5; do
-            git fetch origin main
-            git reset --hard origin/main
-            (cd k8s && kustomize edit set image stackit-churn-app="$IMAGE:${{ needs.build-and-push.outputs.tag }}")
-            if git diff --quiet; then echo "no changes"; exit 0; fi
-            git commit -am "ci: deploy ${IMAGE}:${{ needs.build-and-push.outputs.tag }}"
-            if git push origin HEAD:main; then exit 0; fi
-            echo "push rejected (attempt $i), retrying..."
-            sleep $((RANDOM % 5 + 2))
-          done
-          echo "could not push the manifest bump" >&2
-          exit 1
+          (cd k8s && kustomize edit set image stackit-churn-app="$IMAGE:${{ needs.build-and-push.outputs.tag }}")
+          if git diff --quiet; then echo "no changes"; exit 0; fi
+          git commit -am "ci: deploy ${IMAGE}:${{ needs.build-and-push.outputs.tag }}"
+          git push origin HEAD:main

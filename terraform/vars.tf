@@ -56,17 +56,6 @@ variable "ADMIN_PRINCIPAL_ARNS" {
   default = []
 }
 
-variable "ECR_REPO" {
-  type    = string
-  default = "stackit-churn-repo"
-}
-
-# Set true only if the ECR repository does not exist yet.
-variable "CREATE_ECR_REPO" {
-  type    = bool
-  default = false
-}
-
 # GitOps: ArgoCD watches this repo/path for the kustomize manifests.
 variable "GITOPS_REPO_URL" {
   type        = string

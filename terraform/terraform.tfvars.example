@@ -1,4 +1,6 @@
-# Copy to terraform.tfvars for local runs. In CI the same values come from
-# repo Variables (see .github/workflows/terraform.yml).
+# Copy to terraform.tfvars for local runs only. In CI, terraform.yml passes
+# these as TF_VAR_ env vars instead:
+#   GITOPS_REPO_URL      -> built from github.server_url + github.repository
+#   ADMIN_PRINCIPAL_ARNS -> repo Variable ADMIN_PRINCIPAL_ARNS (defaults to [])
 GITOPS_REPO_URL      = "https://github.com/<your-org>/stackit-churn-app_eks.git"
 ADMIN_PRINCIPAL_ARNS = ["arn:aws:iam::524558748095:user/<you>"]

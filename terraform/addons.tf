@@ -1,5 +1,6 @@
-# ---- In-cluster add-ons (installed with Helm) --------------------------------
+# In-cluster add-ons, installed with Helm
 
+# AWS Load Balancer Controller, using the IRSA role from irsa.tf
 resource "helm_release" "lb_controller" {
   name       = "aws-load-balancer-controller"
   namespace  = "kube-system"
@@ -35,6 +36,7 @@ resource "helm_release" "lb_controller" {
   ]
 }
 
+# ArgoCD, which deploys the app from Git (GitOps)
 resource "helm_release" "argocd" {
   name             = "argocd"
   namespace        = "argocd"
